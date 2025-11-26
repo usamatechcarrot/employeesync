@@ -13,21 +13,6 @@ def _json_response(payload, status=200):
 
 
 class EmployeeAPIController(http.Controller):
-    """
-    POST /api/employees
-    Header: X-API-KEY: <odoo api key>
-
-    Body example:
-    {
-      "external_id": "EMP001",
-      "name": "Ali Khan",
-      "work_email": "ali@company.com",
-      "work_phone": "+92...",
-      "job_title": "Sales Rep",
-      "department_id": 3,
-      "manager_id": 7
-    }
-    """
 
     @http.route(
         "/api/employees",
@@ -37,14 +22,15 @@ class EmployeeAPIController(http.Controller):
         csrf=False,
     )
     def upsert_employee(self, **kwargs):
-        data = request.jsonrequest or {}
+
+        # Odoo 19: JSON-RPC params are here
+        data = request.params or {}
 
         # ---- API KEY AUTH ----
         api_key = request.httprequest.headers.get("X-API-KEY")
         if not api_key:
             return _json_response({"error": "Missing X-API-KEY header"}, status=401)
 
-        # Find a user owning this api key
         user = request.env["res.users"].sudo().search(
             [("api_key_ids.key", "=", api_key)],
             limit=1
@@ -68,7 +54,6 @@ class EmployeeAPIController(http.Controller):
             "job_title": data.get("job_title"),
         }
 
-        # Optional relation fields
         if data.get("department_id"):
             vals["department_id"] = int(data["department_id"])
         if data.get("manager_id"):
