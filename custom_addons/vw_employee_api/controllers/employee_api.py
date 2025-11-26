@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-import hashlib
 import json
 from odoo import http
+from odoo.exceptions import AccessDenied
 from odoo.http import request, Response
 
 
@@ -24,29 +24,33 @@ class EmployeeAPIController(http.Controller):
     )
     def upsert_employee(self, **kwargs):
 
-        # Odoo 19: JSON-RPC params are here
-        data = request.params or {}
+        data = request.jsonrequest or {}
 
         # ---- API KEY AUTH ----
         api_key = request.httprequest.headers.get("X-API-KEY")
         if not api_key:
             return _json_response({"error": "Missing X-API-KEY header"}, status=401)
 
-        api_key_record = request.env["res.users.apikeys"].sudo().search(
-            [("key_sha512", "=", hashlib.sha512(api_key.encode("utf-8")).hexdigest())],
-            limit=1
-        )
-        if not api_key_record:
+        api_key_model = request.env["res.users.apikeys"].sudo()
+        uid = False
+        for scope in ("jsonrpc", "rpc"):
+            try:
+                uid = api_key_model._check_credentials(scope=scope, key=api_key)
+            except AccessDenied:
+                uid = False
+            if uid:
+                break
+        if not uid:
             return _json_response({"error": "Invalid API key"}, status=401)
 
-        env = request.env(user=api_key_record.user_id).sudo()
+        env = request.env(user=request.env["res.users"].browse(uid)).sudo()
 
         # ---- Required fields ----
         name = data.get("name")
         if not name:
             return _json_response({"error": "name is required"}, status=400)
 
-        external_id = data.get("external_id")
+        powerapps_id = data.get("powerapps_id") or data.get("external_id")
 
         vals = {
             "name": name,
@@ -63,10 +67,12 @@ class EmployeeAPIController(http.Controller):
         Employee = env["hr.employee"]
 
         employee = False
-        if external_id:
-            employee = Employee.search([("x_external_id", "=", external_id)], limit=1)
+        if powerapps_id:
+            employee = Employee.search(
+                [("x_powerapps_id", "=", powerapps_id)], limit=1
+            )
             if not employee:
-                vals["x_external_id"] = external_id
+                vals["x_powerapps_id"] = powerapps_id
 
         if employee:
             employee.write(vals)
