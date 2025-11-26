@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import hashlib
 import json
 from odoo import http
 from odoo.http import request, Response
@@ -31,14 +32,14 @@ class EmployeeAPIController(http.Controller):
         if not api_key:
             return _json_response({"error": "Missing X-API-KEY header"}, status=401)
 
-        user = request.env["res.users"].sudo().search(
-            [("api_key_ids.key", "=", api_key)],
+        api_key_record = request.env["res.users.apikeys"].sudo().search(
+            [("key_sha512", "=", hashlib.sha512(api_key.encode("utf-8")).hexdigest())],
             limit=1
         )
-        if not user:
+        if not api_key_record:
             return _json_response({"error": "Invalid API key"}, status=401)
 
-        env = request.env(user=user).sudo()
+        env = request.env(user=api_key_record.user_id).sudo()
 
         # ---- Required fields ----
         name = data.get("name")

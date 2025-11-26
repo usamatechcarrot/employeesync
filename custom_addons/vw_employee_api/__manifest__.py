@@ -1,6 +1,6 @@
 {
     "name": "Employee API",
-    "version": "1.0.0",
+    "version": "19.0.0",
     "category": "Tools",
     "summary": "REST API to create/update employees from external systems",
     "depends": ["hr"],
